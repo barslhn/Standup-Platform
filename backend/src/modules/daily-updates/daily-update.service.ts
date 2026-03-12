@@ -1,14 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DailyUpdateRepository } from './daily-update.repository';
 import {
   CreateDailyUpdateDto,
   UpdateDailyUpdateDto,
   UpdateStandupPolicyDto,
 } from './dto/daily-update.dto';
-import { EventsGateway } from '../events/events.gateway';
 import { UserRepository } from '../users/user.repository';
-import { dailyUpdates } from '../../core/database/schema';
-import { RedisService } from '../../common/redis/redis.service';
 import {
   NotFoundException,
   AuthorizationException,
@@ -16,16 +13,22 @@ import {
   ValidationException,
 } from '../../common/exceptions/app.exceptions';
 import { computeTeamStats } from './helpers/team-stats.helper';
+import { DailyUpdateCacheService } from './services/daily-update-cache.service';
+import { DailyUpdateNotificationService } from './services/daily-update-notification.service';
+import {
+  groupVersionsByUpdateId,
+  isValidIsoDate,
+  normalizeDailyUpdatePayload,
+  normalizeTeamFilter,
+} from './utils/daily-update.utils';
 
 @Injectable()
 export class DailyUpdateService {
-  private readonly logger = new Logger(DailyUpdateService.name);
-
   constructor(
     private readonly repo: DailyUpdateRepository,
     private readonly userRepo: UserRepository,
-    private readonly gateway: EventsGateway,
-    private readonly redisService: RedisService,
+    private readonly cacheService: DailyUpdateCacheService,
+    private readonly notificationService: DailyUpdateNotificationService,
   ) {}
 
   async create(userId: string, dto: CreateDailyUpdateDto) {
@@ -51,14 +54,14 @@ export class DailyUpdateService {
       };
     }
 
-    const normalized = this.normalizePayload(payload);
+    const normalized = normalizeDailyUpdatePayload(payload);
     const update = await this.repo.create({ ...normalized, date: dto.date, userId });
 
-    await this.invalidateListCache();
+    await this.cacheService.invalidateListCache();
 
-    await this.broadcastUpdateToManagers(update, 'update_changed', 'create');
+    await this.notificationService.notifyUpdateChanged(update, 'create');
     if (update.hasBlocker) {
-      await this.notifyManagersAboutBlocker(update);
+      await this.notificationService.notifyManagersAboutBlocker(update);
     }
 
     return update;
@@ -94,7 +97,7 @@ export class DailyUpdateService {
       throw new BusinessRuleException('On Leave update cannot be edited within the same day');
     }
 
-    const normalized = this.normalizePayload(dto, update);
+    const normalized = normalizeDailyUpdatePayload(dto, update);
 
     const fieldsToCompare = ['status', 'yesterday', 'today', 'hasBlocker', 'blockers'];
     const isChanged = fieldsToCompare.some((field) => {
@@ -110,13 +113,13 @@ export class DailyUpdateService {
 
     const updated = await this.repo.updateWithVersion(id, update, normalized, userId);
 
-    await this.invalidateListCache();
-    await this.invalidateItemCache(id);
+    await this.cacheService.invalidateListCache();
+    await this.cacheService.invalidateItemCache(id);
 
     if (updated) {
-      await this.broadcastUpdateToManagers(updated, 'update_changed', 'patch');
+      await this.notificationService.notifyUpdateChanged(updated, 'patch');
       if (updated.hasBlocker) {
-        await this.notifyManagersAboutBlocker(updated);
+        await this.notificationService.notifyManagersAboutBlocker(updated);
       }
     }
 
@@ -137,19 +140,7 @@ export class DailyUpdateService {
     }
 
     const versions = await this.repo.findVersionsByUpdateIds(uniqueIds);
-    const grouped = new Map<string, typeof versions>();
-
-    uniqueIds.forEach((id) => {
-      grouped.set(id, []);
-    });
-
-    versions.forEach((version) => {
-      const current = grouped.get(version.updateId) ?? [];
-      current.push(version);
-      grouped.set(version.updateId, current);
-    });
-
-    return Object.fromEntries(grouped.entries());
+    return groupVersionsByUpdateId(uniqueIds, versions);
   }
 
   async getStandupPolicy() {
@@ -158,11 +149,11 @@ export class DailyUpdateService {
 
   async getTeamStats(date?: string, team?: string) {
     const targetDate = date ?? new Date().toISOString().split('T')[0];
-    if (!this.isValidDate(targetDate)) {
+    if (!isValidIsoDate(targetDate)) {
       throw new ValidationException('Invalid date format. Expected YYYY-MM-DD');
     }
 
-    const normalizedTeam = this.normalizeTeam(team);
+    const normalizedTeam = normalizeTeamFilter(team);
 
     const [employees, managers, updates] = await Promise.all([
       this.userRepo.findAllEmployees(normalizedTeam),
@@ -182,157 +173,8 @@ export class DailyUpdateService {
       lateAfter: dto.lateAfter,
     });
 
-    await this.invalidatePolicyCache();
+    await this.cacheService.invalidatePolicyCache();
 
     return updatedPolicy;
-  }
-
-  private async broadcastUpdateToManagers(
-    updateData: typeof dailyUpdates.$inferSelect,
-    event: string,
-    action: 'create' | 'patch',
-  ) {
-    try {
-      const [managers, user] = await Promise.all([
-        this.userRepo.findAllManagers(),
-        this.userRepo.findById(updateData.userId),
-      ]);
-
-      const payload = {
-        action,
-        updateId: updateData.id,
-        user: { id: user?.id, name: user?.name, email: user?.email },
-        date: updateData.date,
-        hasBlocker: updateData.hasBlocker,
-      };
-
-      managers.forEach((manager) => {
-        this.gateway.sendToUser(manager.id, event, payload);
-      });
-    } catch (error) {
-      this.logger.error('Update changed notification failed:', error);
-    }
-  }
-
-  private async notifyManagersAboutBlocker(updateData: typeof dailyUpdates.$inferSelect) {
-    try {
-      const [managers, user] = await Promise.all([
-        this.userRepo.findAllManagers(),
-        this.userRepo.findById(updateData.userId),
-      ]);
-
-      const notificationPayload = {
-        updateId: updateData.id,
-        user: { id: user?.id, name: user?.name, email: user?.email },
-        blockers: updateData.blockers,
-        date: updateData.date,
-      };
-
-      managers.forEach((manager) => {
-        this.gateway.sendToUser(manager.id, 'new_blocker', notificationPayload);
-      });
-    } catch (error) {
-      this.logger.error('Blocker notification failed:', error);
-    }
-  }
-
-  private async invalidateListCache() {
-    const deletedCount = await this.invalidateCachePatterns([
-      'cache:http:GET:/updates*',
-      'cache:http:GET:/updates/stats/team*',
-    ]);
-
-    this.logger.debug(`Updates list cache cleared. Deleted records: ${deletedCount}`);
-  }
-
-  private async invalidateItemCache(id: string) {
-    const deletedCount = await this.invalidateCachePatterns([
-      `cache:http:GET:/updates/${id}*`,
-      `cache:http:GET:/updates/${id}/versions*`,
-    ]);
-
-    this.logger.debug(`Update ${id} detail cache cleared. Deleted records: ${deletedCount}`);
-  }
-
-  private async invalidatePolicyCache() {
-    const deletedCount = await this.invalidateCachePatterns(['cache:http:GET:/updates/policy*']);
-    this.logger.debug(`Stand-up policy cache cleared. Deleted records: ${deletedCount}`);
-  }
-
-  private async invalidateCachePatterns(patterns: string[]): Promise<number> {
-    let totalDeleted = 0;
-
-    for (const pattern of patterns) {
-      totalDeleted += await this.redisService.deleteByPattern(pattern);
-    }
-
-    return totalDeleted;
-  }
-
-  private normalizePayload(
-    dto: CreateDailyUpdateDto | UpdateDailyUpdateDto,
-    base?: typeof dailyUpdates.$inferSelect,
-  ) {
-    const status = dto.status ?? base?.status ?? 'ACTIVE';
-    const hasBlocker = dto.hasBlocker ?? base?.hasBlocker ?? false;
-    const yesterday = dto.yesterday ?? base?.yesterday ?? '-';
-    const today = dto.today ?? base?.today ?? '-';
-
-    if (status !== 'ACTIVE') {
-      const leaveHasBlocker = dto.hasBlocker ?? false;
-      const leaveYesterday = dto.yesterday?.trim() ? dto.yesterday : '-';
-      const leaveToday = dto.today?.trim() ? dto.today : 'On Leave';
-      const leaveBlockers = leaveHasBlocker ? (dto.blockers ?? null) : null;
-
-      return {
-        ...dto,
-        status,
-        yesterday: leaveYesterday,
-        today: leaveToday,
-        hasBlocker: leaveHasBlocker,
-        blockers: leaveBlockers,
-      };
-    }
-
-    const blockers = hasBlocker ? (dto.blockers ?? base?.blockers ?? null) : null;
-
-    return {
-      ...dto,
-      status,
-      yesterday,
-      today,
-      hasBlocker,
-      blockers,
-    };
-  }
-
-  private isValidDate(value: string): boolean {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      return false;
-    }
-
-    const [year, month, day] = value.split('-').map(Number);
-    const parsed = new Date(Date.UTC(year, month - 1, day));
-
-    return (
-      parsed.getUTCFullYear() === year &&
-      parsed.getUTCMonth() === month - 1 &&
-      parsed.getUTCDate() === day
-    );
-  }
-
-  private normalizeTeam(team?: string): string | undefined {
-    if (!team) {
-      return undefined;
-    }
-
-    const normalized = team.trim();
-    const lowered = normalized.toLocaleLowerCase('en-US');
-
-    if (lowered === 'all' || lowered === 'all teams') {
-      return undefined;
-    }
-
-    return normalized;
   }
 }

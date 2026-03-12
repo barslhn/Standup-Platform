@@ -1,6 +1,6 @@
 ### Standup Platform
 
-Bu proje, klasik sabah stand-up toplantılarını tamamen ortadan kaldırmak için hazırladığım asenkron bir günlük senkronizasyon uygulaması. Amaç, herkesin gün içindeki uygun zamanında kısa bir güncelleme bırakabilmesi ve özellikle blocker (engel) durumlarının yöneticilere **gecikmeden** ve **kaybolmadan** ulaşması.
+Bu proje, klasik sabah stand-up toplantılarını tamamen ortadan kaldırmak için hazırladığım asenkron bir günlük senkronizasyon uygulaması. Amaç, herkesin gün içindeki uygun zamanında kısa bir güncelleme bırakabilmesi ve özellikle blocker durumlarının yöneticilere gecikmeden ve kaybolmadan ulaşması.
 
 Uygulama iki rolden oluşuyor:
 
@@ -11,11 +11,8 @@ Seçtiğim ve odaklandığım challengelar:
 
 - **Real-time (#2)**: Çalışan blocker işaretlediği anda, ilgili yöneticilere Socket.io üzerinden gerçek zamanlı bildirim gidiyor, sayfa yenilemeye gerek kalmıyor.
 - **Data Integrity (#3)**: Her standup güncellemesi için versiyonlama yapıyorum. Bir kayıt düzenlendiğinde eski hali `updateVersions` tablosuna JSON olarak yazılıyor, kim ne zaman değiştirmiş görülebiliyor.
-- **Analytics’e yakın ek özellik**: Manager dashboard’unda günlük istatistikler (kaç kişi gönderdi, kimler göndermedi, kaç blocker var, kaç kişi izinli, kaç kayıt sonradan düzenlenmiş) görsel olarak sunuluyor.
 
----
-
-### Teknoloji Stack’i
+### Teknoloji Stack’i Tasklerden Yol Alarak
 
 - **Frontend**
   - Next.js 15/16 (App Router, React 19)
@@ -39,8 +36,8 @@ Seçtiğim ve odaklandığım challengelar:
 
 - **Altyapı / Diğer**
   - pnpm (backend ve frontend için)
-  - Docker & docker-compose
-  - GitHub Actions (CI: Lint → Type Check → Build)
+  - Docker ve docker-compose
+  - GitHub Actions
 
 ---
 
@@ -53,7 +50,7 @@ Proje iki ana klasörden oluşuyor:
 
 Backend tarafında klasik bir **Katmanlı Mimari** ve **Repository Pattern** kullandım:
 
-- **Controller**: Sadece request/response katmanı; business logic yok.
+- **Controller**: Sadece request ve response katmanı, business logic yok.
 - **Service**: İş kuralları, validasyonlar ve farklı servislerin orkestrasyonu burada.
 - **Repository**: Drizzle ile konuşan, sadece veri erişimiyle ilgilenen katman.
 
@@ -69,19 +66,18 @@ Data integrity için:
 
 - `daily_updates` tablosu günlük kayıtları tutuyor.
 - `updateVersions` tablosu her değişiklikte eski snapshot’ı JSON olarak saklıyor.
-- Edit işlemleri Drizzle transaction içinde yapılıyor; ya hem versiyon hem update başarılı oluyor, ya da ikisi birden rollback ediliyor.
+- Edit işlemleri Drizzle transaction içinde yapılıyor, ya hem versiyon hem update başarılı oluyor, ya da ikisi birden rollback ediliyor.
 
----
 
 ### Çalıştırma (Lokal Geliştirme)
 
-> Gereksinimler: Node.js 20+, pnpm yüklü, PostgreSQL ve Redis (istersen docker-compose ile de çalıştırabilirsin, aşağıda anlattım).
+Gereksinimler: Node.js 20+, pnpm yüklü, PostgreSQL ve Redis (istersen docker-compose ile de çalıştırabilirsin, aşağıda anlattım).
 
 1. Depoyu klonla:
 
 ```bash
-git clone <repo-url>
-cd standup-platform
+git clone https://github.com/barslhn/Standup-Platform.git
+cd Standup-Platform
 ```
 
 2. Backend bağımlılıkları:
@@ -98,7 +94,7 @@ cd ../frontend
 pnpm install
 ```
 
-4. Gerekli environment değişkenlerini ayarla (aşağıdaki bölüme bak).
+4. Gerekli environment değişkenlerini ayarla.
 
 5. Geliştirme modunda çalıştır:
 
@@ -123,71 +119,13 @@ Varsayılan olarak:
 
 ---
 
-### Environment Değişkenleri
-
-#### Backend (`backend/.env`)
-
-Bu değişkenler `backend/src/common/config/env.ts` içindeki Zod şeması ile doğrulanıyor:
-
-**Zorunlu**
-
-- `NODE_ENV` – `development` | `production` | `test`
-- `PORT` – API portu (örn. `3001`)
-- `DATABASE_URL` – PostgreSQL bağlantı URL’i  
-  Örnek: `postgres://standup_user:standup_pass@localhost:5432/standup_db`
-- `JWT_SECRET` – En az 16 karakter uzunluğunda secret
-- `JWT_EXPIRES_IN` – JWT yaşam süresi (örn. `1h`, `3600s`)
-- `FRONTEND_URL` – CORS ve WebSocket için frontend origin (örn. `http://localhost:3000`)
-- `REDIS_HOST` – Redis host (lokalde `localhost` veya docker-compose kullanıyorsan `redis`)
-- `REDIS_PORT` – Redis port (varsayılan `6379`)
-- `SWAGGER_USER` – Swagger UI için basic auth kullanıcı adı (prod’da)
-- `SWAGGER_PASSWORD` – Swagger UI için basic auth şifresi
-- `RESEND_API_KEY` – Şifre sıfırlama mailleri için Resend API key
-- `MAIL_FROM` – Gönderici e-posta adresi
-
-**Opsiyonel**
-
-- `GCS_BUCKET_NAME`, `GCS_PROJECT_ID`, `GOOGLE_APPLICATION_CREDENTIALS` – Google Cloud Storage entegrasyonu için opsiyonel alanlar.
-
-> Bu env değerleri doğru değilse uygulama daha başlarken Zod hatası fırlatıp ayağa kalkmıyor. Böylece yanlış config ile ayağa kalkmamış oluyorum.
-
-#### Frontend (`frontend/.env.local`)
-
-- `NEXT_PUBLIC_API_URL` – Backend API base URL’si  
-  Örnek: `http://localhost:3001`
-- `NEXT_PUBLIC_WS_URL` – WebSocket URL’si  
-  Örnek: `http://localhost:3001`
-
-Bu değerler `frontend/src/core/config.ts` içinde Zod ile validate ediliyor. Eksik ya da hatalı ise Next.js uygulaması boot etmeden hata veriyor.
-
----
-
 ### Docker ile Backend İmajı (Multi‑Stage, Alpine)
 
 Backend için root seviyede bir `Dockerfile` kullanıyorum. Bu Dockerfile:
 
 - `node:20-alpine` tabanlı,
-- Multi-stage build (builder + production runner),
+- Multi-stage build,
 - Sadece backend kodunu derleyip `dist` klasörünü production imajına kopyalıyor.
-
-Lokal olarak backend imajını production modunda derleyip test etmek için:
-
-```bash
-# Proje kökünde iken
-docker build -t standup-backend .
-
-docker run --rm -p 3001:3001 \
-  --env-file backend/.env \
-  standup-backend
-```
-
-Sonra örnek bir endpoint ile test edebilirsin:
-
-```bash
-curl http://localhost:3001/test-status/200
-```
-
-Eğer her şey doğruysa `{ "message": "OK", "status": 200 }` döner.
 
 ---
 
@@ -199,38 +137,44 @@ Kök dizindeki `docker-compose.yml` dosyası şu servisleri ayağa kaldırır:
 - `redis` – Redis 7, append-only log ile.
 - `backend` – NestJS API, yukarıdaki Dockerfile’dan build edilir.
 
-> İleride istersen frontend için de ayrı bir container eklenebilir, şu an odak backend + DB + Redis tarafında.
+### Docker ile Frontend İmajı (Multi‑Stage, Alpine)
 
-Ön hazırlık olarak kök dizinde bir `.env` dosyası oluşturup backend env’lerini buraya taşıyorum:
+Frontend için root seviyede bir `Dockerfile.frontend` kullanıyorum. Bu Dockerfile:
 
-```env
-NODE_ENV=development
-PORT=3001
-DATABASE_URL=postgres://standup_user:standup_pass@postgres:5432/standup_db
-JWT_SECRET=super-secret-jwt-key-change-me
-JWT_EXPIRES_IN=1h
-FRONTEND_URL=http://localhost:3000
-REDIS_HOST=redis
-REDIS_PORT=6379
-SWAGGER_USER=admin
-SWAGGER_PASSWORD=admin123
-RESEND_API_KEY=your-resend-api-key
-MAIL_FROM=onboarding@resend.dev
-```
+- `node:20-alpine` tabanlı,
+- Multi-stage build,
+- Next.js uygulamasını production için build edip `standalone` çıktıyla çalıştırıyor.
 
-Ardından tek komutla tüm stack’i çalıştırabiliyorum:
+Build aşamasında `NEXT_PUBLIC_API_URL` ve `NEXT_PUBLIC_WS_URL` değerleri argüman olarak verilebilir, runtime’da da compose üzerinden environment olarak geçilir.
+
+---
+
+### docker-compose ile Frontend Servisi
+
+Kök dizindeki `docker-compose.yml` içinde `frontend` servisi de tanımlıdır:
+
+- `frontend` – Next.js uygulaması, `Dockerfile.frontend` ile build edilir.
+- Varsayılan port: `3000:3000`
+- `backend` servisine bağımlıdır (`depends_on`).
+
+Böylece `docker compose up -d --build` ile backend + frontend + postgres + redis birlikte ayağa kalkar.
+
+---
+
+Ön hazırlık olarak kök dizinde bir `.env` dosyası oluşturup backend env’lerini buraya taşıyorum, ardından tek komutla tüm stack’i çalıştırabiliyorum:
 
 ```bash
 docker compose up --build
 ```
 
-Çalıştığını test etmek için:
+Logları kontrol etmek için:
 
 ```bash
-curl http://localhost:3001/test-status/200
+ docker compose logs -f backend
+ docker compose logs -f frontend
 ```
 
-Veri kalıcılığını test etmek için:
+Veri kalıcılığını test etmek için(durdumak için down):
 
 ```bash
 docker compose down
@@ -248,16 +192,6 @@ PostgreSQL volume sayesinde tablolar ve veriler korunuyor.
 1. Kod checkout ediliyor.
 2. Node 20 ve pnpm kuruluyor.
 3. pnpm store cache’leniyor.
-4. **Backend** için:
-   - `pnpm install --frozen-lockfile`
-   - `pnpm lint`
-   - `pnpm tsc --noEmit -p tsconfig.build.json`
-   - `pnpm build`
-5. **Frontend** için:
-   - `pnpm install --frozen-lockfile`
-   - `pnpm lint`
-   - `pnpm tsc --noEmit`
-   - `pnpm build`
 
 Böylece:
 

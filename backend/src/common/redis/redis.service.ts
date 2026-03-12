@@ -74,22 +74,17 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       local limit = tonumber(ARGV[3])
       local clearBefore = now - window
 
-      -- Pencere dışındaki eski kayıtları temizle
-
       redis.call('ZREMRANGEBYSCORE', key, 0, clearBefore)
       
-      -- Mevcut istek sayısını al
 
       local amount = redis.call('ZCARD', key)
 
       if amount < limit then
-        -- Limit aşılmadıysa yeni isteği ekle
 
           redis.call('ZADD', key, now, now)
           redis.call('PEXPIRE', key, window)
           return {1, 0}
       else
-          -- Limit aşıldıysa en eski isteğin window dışında kalacağı süreyi hesapla
         
           local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
           local retryAfter = 0

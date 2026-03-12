@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAllUpdates, useStandupPolicy } from "@/modules/daily-updates/hooks/useUpdates";
 import { useDebounce } from "@/common/hooks/useDebounce";
+import type { UpdateFilter } from "@/modules/manager/types/update-filters";
 
 export function useTeamUpdates() {
   const PAGE_SIZE = 8;
   const [search, setSearch] = useState("");
   const [selectedTeam, setSelectedTeam] = useState("");
-  const [selectedFilters, setSelectedFilters] = useState<Array<"ON_LEAVE" | "BLOCKER" | "LATE" | "EDITED">>([]);
+  const [selectedFilters, setSelectedFilters] = useState<UpdateFilter[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [dateFilter, setDateFilter] = useState(
     new Date().toISOString().split("T")[0]
@@ -96,7 +97,7 @@ export function useTeamUpdates() {
   const pageStart = (currentPage - 1) * PAGE_SIZE;
   const filtered = prioritizedAll.slice(pageStart, pageStart + PAGE_SIZE);
 
-  const toggleFilter = (filter: "ON_LEAVE" | "BLOCKER" | "LATE" | "EDITED") => {
+  const toggleFilter = (filter: UpdateFilter) => {
     setSelectedFilters((prev) =>
       prev.includes(filter) ? prev.filter((item) => item !== filter) : [...prev, filter],
     );
