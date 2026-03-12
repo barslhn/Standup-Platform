@@ -68,8 +68,12 @@ jobs:
         run: pnpm exec tsc --noEmit
 
       - name: Build frontend
-        working-directory: frontend
-        run: pnpm build
+      working-directory: frontend
+      env:
+    NEXT_PUBLIC_API_URL: http://localhost:3001
+    NEXT_PUBLIC_WS_URL: http://localhost:3001
+    run: pnpm build
+
 
   gitleaks:
     name: Secret Scan (Gitleaks)
