@@ -57,3 +57,6 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+const ciLintProof = ;
+
