@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Standup Platform — WebSocket Test</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0a0f1e;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 24px;
+      background-image:
+        radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(236, 72, 153, 0.10) 0%, transparent 50%);
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    header h1 {
+      font-size: 1.7rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #818cf8 0%, #ec4899 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    header p {
+      color: #94a3b8;
+      margin-top: 5px;
+      font-size: 0.85rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      max-width: 1060px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 20px;
+      backdrop-filter: blur(12px);
+    }
+
+    .card h3 {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #818cf8;
+      margin-bottom: 13px;
+    }
+
+    .card.full {
+      grid-column: 1 / -1;
+    }
+
+    .field {
+      margin-bottom: 10px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 0.76rem;
+      color: #94a3b8;
+      margin-bottom: 4px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 8px 11px;
+      color: #e2e8f0;
+      font-size: 0.84rem;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus {
+      border-color: #818cf8;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 7px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      align-items: center;
+    }
+
+    button {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1, #818cf8);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.85;
+      transform: translateY(-1px);
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #f87171;
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    .btn-ghost {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #cbd5e1;
+    }
+
+    .btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 0.74rem;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 0.76rem;
+      font-weight: 500;
+    }
+
+    .status-offline {
+      background: rgba(100, 116, 139, 0.2);
+      border: 1px solid rgba(100, 116, 139, 0.3);
+      color: #94a3b8;
+    }
+
+    .status-online {
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      color: #4ade80;
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .dot.pulse {
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: 0.3
+      }
+    }
+
+    /* Filter pills */
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+
+    .filter-label {
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-right: 4px;
+    }
+
+    .pill {
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.74rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.18s;
+      background: rgba(255, 255, 255, 0.05);
+      color: #94a3b8;
+    }
+
+    .pill.active {
+      background: rgba(129, 140, 248, 0.2);
+      border-color: #818cf8;
+      color: #a5b4fc;
+    }
+
+    .pill.active-warn {
+      background: rgba(251, 191, 36, 0.15);
+      border-color: #fbbf24;
+      color: #fcd34d;
+    }
+
+    .pill.active-err {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: #f87171;
+      color: #fca5a5;
+    }
+
+    .pill.active-ok {
+      background: rgba(34, 197, 94, 0.15);
+      border-color: #4ade80;
+      color: #86efac;
+    }
+
+    .pill:hover {
+      opacity: 0.8;
+    }
+
+    .stat-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .stat-chip {
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .stat-chip span {
+      color: #818cf8;
+      margin-right: 4px;
+    }
+
+    /* Logs */
+    #logs {
+      max-height: 360px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #334155 transparent;
+    }
+
+    .log-entry {
+      display: flex;
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 0.81rem;
+      align-items: flex-start;
+    }
+
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+
+    .log-time {
+      color: #475569;
+      white-space: nowrap;
+      font-size: 0.73rem;
+      padding-top: 1px;
+    }
+
+    .log-body {
+      flex: 1;
+    }
+
+    .log-msg {
+      font-weight: 500;
+    }
+
+    .log-data {
+      margin-top: 5px;
+      padding: 7px 9px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 0.77rem;
+      color: #94a3b8;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .type-success .log-msg {
+      color: #4ade80;
+    }
+
+    .type-error .log-msg {
+      color: #f87171;
+    }
+
+    .type-info .log-msg {
+      color: #818cf8;
+    }
+
+    .type-warn .log-msg {
+      color: #fbbf24;
+    }
+
+    .log-entry.hidden {
+      display: none;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 36px;
+      color: #475569;
+      font-size: 0.83rem;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <h1>⚡ Standup Platform — WebSocket Test</h1>
+    <p>Gerçek zamanlı bildirim sistemi (Challenge #2)</p>
+  </header>
+
+  <div class="grid">
+
+    <!-- Bağlantı -->
+    <div class="card">
+      <h3>🔌 Bağlantı</h3>
+      <div class="field">
+        <label>Backend URL</label>
+        <input type="text" id="serverUrl" value="http://localhost:3001">
+      </div>
+      <div class="field">
+        <label>JWT Token (login → <code>access_token</code>)</label>
+        <input type="text" id="token" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+      </div>
+      <div class="btn-row">
+        <button class="btn-primary" onclick="connect()">Bağlan</button>
+        <button class="btn-danger" onclick="disconnect()">Bağlantıyı Kes</button>
+        <span id="statusBadge" class="status-badge status-offline"><span class="dot"></span> Bağlı Değil</span>
+      </div>
+    </div>
+
+    <!-- Test Rehberi -->
+    <div class="card">
+      <h3>📡 Nasıl Test Edilir?</h3>
+      <p style="font-size:0.82rem; color:#94a3b8; line-height:1.8;">
+        <strong style="color:#c084fc">1.</strong> Manager hesabıyla login ol, token'ı yapıştır →
+        <strong style="color:#c084fc">Bağlan</strong><br>
+        <strong style="color:#c084fc">2.</strong> Employee hesabıyla Swagger'dan
+        <code style="background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:3px">POST /updates</code> at<br>
+        <strong style="color:#fbbf24">3.</strong> Manager'ın ekranında
+        <strong style="color:#86efac">update_changed</strong> eventi gelir ✅<br>
+        <strong style="color:#ec4899">4.</strong> <code
+          style="background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:3px">hasBlocker: true</code> gönderince
+        ayrıca
+        <strong style="color:#fca5a5">new_blocker</strong> da gelir 🚨
+      </p>
+    </div>
+
+    <!-- İstatistikler + Filtre + Log -->
+    <div class="card full">
+      <h3 style="display:flex;justify-content:space-between;align-items:center;">
+        📋 Canlı Event Logu
+        <button class="btn-ghost btn-sm" onclick="clearLogs()">Temizle</button>
+      </h3>
+
+      <!-- İstatistikler -->
+      <div class="stat-row">
+        <div class="stat-chip"><span id="cntTotal">0</span> Toplam</div>
+        <div class="stat-chip"><span id="cntChanged">0</span> update_changed</div>
+        <div class="stat-chip"><span id="cntBlocker">0</span> new_blocker</div>
+      </div>
+
+      <!-- Filtre Pills -->
+      <div class="filter-bar">
+        <span class="filter-label">Filtre:</span>
+        <span class="pill active" data-filter="all" onclick="setFilter('all', this)">Tümü</span>
+        <span class="pill" data-filter="update_changed"
+          onclick="setFilter('update_changed', this)">update_changed</span>
+        <span class="pill" data-filter="new_blocker" onclick="setFilter('new_blocker', this)">🚨 new_blocker</span>
+        <span class="pill" data-filter="create" onclick="setFilter('create', this)">POST (create)</span>
+        <span class="pill" data-filter="patch" onclick="setFilter('patch', this)">PATCH (güncelleme)</span>
+        <span class="pill" data-filter="system" onclick="setFilter('system', this)">Sistem</span>
+      </div>
+
+      <div id="logs">
+        <div class="empty-state">Henüz event yok. Bağlan ve Swagger'dan bir güncelleme gönder.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let socket = null;
+    let currentFilter = 'all';
+    const counters = { total: 0, changed: 0, blocker: 0 };
+
+    /* ─── Log Helper ────────────────────────────────────── */
+    function addLog(msg, data, type, filterTag) {
+      const container = document.getElementById('logs');
+      const empty = container.querySelector('.empty-state');
+      if (empty) empty.remove();
+
+      const entry = document.createElement('div');
+      entry.className = `log-entry type-${type}`;
+      entry.dataset.filter = filterTag ?? type;
+
+      const now = new Date().toLocaleTimeString('tr-TR');
+      entry.innerHTML = `
+      <span class="log-time">${now}</span>
+      <div class="log-body">
+        <div class="log-msg">${msg}</div>
+        ${data != null ? `<div class="log-data">${JSON.stringify(data, null, 2)}</div>` : ''}
+      </div>`;
+
+      applyVisibility(entry);
+      container.prepend(entry);
+
+      // sayaçlar
+      counters.total++;
+      document.getElementById('cntTotal').textContent = counters.total;
+    }
+
+    /* ─── Filter ───────────────────────────────────────── */
+    function setFilter(filter, el) {
+      currentFilter = filter;
+      document.querySelectorAll('.pill').forEach(p => p.className = 'pill');
+      el.classList.add('active');
+
+      document.querySelectorAll('.log-entry').forEach(e => applyVisibility(e));
+    }
+
+    function applyVisibility(entry) {
+      const tag = entry.dataset.filter ?? '';
+      if (currentFilter === 'all') {
+        entry.classList.remove('hidden');
+      } else if (currentFilter === 'create') {
+        // update_changed + action:create
+        entry.classList.toggle('hidden', !tag.includes('create'));
+      } else if (currentFilter === 'patch') {
+        entry.classList.toggle('hidden', !tag.includes('patch'));
+      } else {
+        entry.classList.toggle('hidden', tag !== currentFilter);
+      }
+    }
+
+    function clearLogs() {
+      document.getElementById('logs').innerHTML = '<div class="empty-state">Loglar temizlendi.</div>';
+      counters.total = 0; counters.changed = 0; counters.blocker = 0;
+      ['cntTotal', 'cntChanged', 'cntBlocker'].forEach(id => document.getElementById(id).textContent = '0');
+    }
+
+    /* ─── Status Badge ─────────────────────────────────── */
+    function setStatus(online, socketId) {
+      const badge = document.getElementById('statusBadge');
+      if (online) {
+        badge.className = 'status-badge status-online';
+        badge.innerHTML = `<span class="dot pulse"></span> Bağlı — <small>${socketId.slice(0, 10)}…</small>`;
+      } else {
+        badge.className = 'status-badge status-offline';
+        badge.innerHTML = '<span class="dot"></span> Bağlı Değil';
+      }
+    }
+
+    /* ─── Connect ──────────────────────────────────────── */
+    function connect() {
+      if (socket?.connected) { addLog('Zaten bağlısın.', null, 'info', 'system'); return; }
+
+      const token = document.getElementById('token').value.trim();
+      const url = document.getElementById('serverUrl').value.trim();
+      if (!token) { addLog('❌ Token boş bırakılamaz!', null, 'error', 'system'); return; }
+
+      addLog(`Bağlanılıyor → ${url}`, null, 'info', 'system');
+      socket = io(url, { auth: { token }, transports: ['websocket'] });
+
+      socket.on('connect', () => {
+        setStatus(true, socket.id);
+        addLog('✅ Bağlantı kuruldu (JWT doğrulandı)', { socketId: socket.id }, 'success', 'system');
+      });
+
+      socket.on('disconnect', reason => {
+        setStatus(false);
+        addLog(`🔴 Bağlantı kesildi: ${reason}`, null, 'error', 'system');
+      });
+
+      socket.on('connect_error', err => {
+        setStatus(false);
+        addLog(`❌ Bağlantı hatası: ${err.message}`, null, 'error', 'system');
+      });
+
+      /* ─── Standup Platform Events ─── */
+
+      // Hem create hem patch için genel bildirim
+      socket.on('update_changed', data => {
+        const action = data?.action === 'patch' ? 'PATCH (güncelleme)' : 'POST (yeni kayıt)';
+        const hasBlocker = data?.hasBlocker ? ' 🚨' : '';
+        const filterTag = data?.action === 'patch' ? 'update_changed patch' : 'update_changed create';
+        counters.changed++;
+        document.getElementById('cntChanged').textContent = counters.changed;
+        addLog(`📝 update_changed — ${action}${hasBlocker}`, data, 'info', filterTag);
+      });
+
+      // Blocker varsa ek olarak bu da gelir
+      socket.on('new_blocker', data => {
+        counters.blocker++;
+        document.getElementById('cntBlocker').textContent = counters.blocker;
+        addLog('🚨 YENİ BLOCKER — new_blocker', data, 'warn', 'new_blocker');
+      });
+
+      // Debug: diğer tüm eventler
+      socket.onAny((event, ...args) => {
+        if (['connect', 'disconnect', 'connect_error', 'update_changed', 'new_blocker'].includes(event)) return;
+        addLog(`📨 Bilinmeyen event: ${event}`, args[0] ?? null, 'info', 'system');
+      });
+    }
+
+    function disconnect() {
+      if (socket) { socket.disconnect(); socket = null; setStatus(false); addLog('🔌 Bağlantı kesildi.', null, 'info', 'system'); }
+    }
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "team" varchar(100) DEFAULT 'General' NOT NULL;
