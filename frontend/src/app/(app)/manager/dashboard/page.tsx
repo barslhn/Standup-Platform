@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Users, AlertTriangle, UserCheck, Pencil, UserMinus, BriefcaseBusiness } from "lucide-react";
 import { StatCard } from "@/modules/manager/components/StatCard";
 import { MetricDetails } from "@/modules/manager/components/MetricDetails";
-import { Manager } from "socket.io-client";
 
 export default function ManagerDashboardPage() {
   const {
