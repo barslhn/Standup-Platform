@@ -66,7 +66,7 @@ export default function ManagerDashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Home {Manager?.name} Welcome! </h1>
+        <h1 className="text-2xl font-bold">Home</h1>
         <p className="text-muted-foreground">
           {new Date().toLocaleDateString("en-US", {
             weekday: "long",
