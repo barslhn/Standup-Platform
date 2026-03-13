@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Users, AlertTriangle, UserCheck, Pencil, UserMinus, BriefcaseBusiness } from "lucide-react";
 import { StatCard } from "@/modules/manager/components/StatCard";
 import { MetricDetails } from "@/modules/manager/components/MetricDetails";
+import { Manager } from "socket.io-client";
 
 export default function ManagerDashboardPage() {
   const {
@@ -65,7 +66,7 @@ export default function ManagerDashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Home</h1>
+        <h1 className="text-2xl font-bold">Home {Manager?.name} Welcome! </h1>
         <p className="text-muted-foreground">
           {new Date().toLocaleDateString("en-US", {
             weekday: "long",

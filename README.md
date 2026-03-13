@@ -210,3 +210,52 @@ Böylece:
 
 ---
 
+### Canliya Alma (GCP VPS + Docker + Nginx + SSL)
+
+Projeyi Google Cloud uzerinde bir VPS'e canliya alirken su adimlari izledim:
+
+1. VPS olusturdum (Debian tabanli VM).
+2. SSH key auth kullandim, password login yerine key ile baglandim.
+3. UFW ile sadece `22`, `80`, `443` portlarini actim.
+4. Sunucuya Docker ve Docker Compose kurdum.
+5. Repo'yu sunucuya aldim ve `.env` degiskenlerini doldurdum.
+6. Full stack'i tek komutla ayaga kaldirdim:
+
+```bash
+docker compose up -d --build
+```
+
+7. Nginx reverse proxy kurdum:
+   - `/` -> frontend (3000)
+   - `/api/` -> backend (3001)
+   - `/socket.io/` -> websocket (3001)
+8. DuckDNS domainimi VM static IP'sine yonlendirdim.
+9. Certbot ile SSL aldim ve HTTPS'i aktif ettim.
+
+Canli URL:
+
+- `https://standup-platform.duckdns.org`
+
+Swagger (Basic Auth korumali):
+
+- `https://standup-platform.duckdns.org/api/api`
+
+Not: IP'nin degismemesi icin external IP'yi static olarak ayarladim.
+
+---
+
+### CD (Push Sonrasi Otomatik Deploy)
+
+`main` branch'e push geldiginde GitHub Actions uzerinden deploy calisiyor:
+
+1. VM'e SSH ile baglanir
+2. `git pull --ff-only origin main` ceker
+3. `docker compose up -d --build` ile canliyi gunceller
+
+Bu islem icin repository secrets:
+
+- `VM_HOST`
+- `VM_USER`
+- `VM_SSH_KEY`
+
+---
