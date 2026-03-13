@@ -210,6 +210,3 @@ Böylece:
 
 ---
 
-### Not
-
-Canlıya alma (Google Cloud üzerinde deployment, domain ve SSL) aşamasını ayrı bir adım olarak planladım. Docker ve docker-compose ile lokal ortamı stabilize ettikten sonra GCP üzerinde aynı imajları kullanarak deployment yapmayı hedefliyorum.
