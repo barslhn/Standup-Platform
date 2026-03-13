@@ -258,4 +258,3 @@ Bu islem icin repository secrets:
 - `VM_USER`
 - `VM_SSH_KEY`
 
----
