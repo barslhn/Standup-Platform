@@ -27,23 +27,19 @@ export class AppConfigService {
   }
 
   get jwtExpiresIn(): string {
-    return this.config.getOrThrow('JWT_EXPIRES_IN');
+    return this.config.get('JWT_EXPIRES_IN') ?? '7d';
   }
 
   get frontendUrl(): string {
     return this.config.get('FRONTEND_URL') ?? 'http://localhost:3000';
   }
 
-  get redisHost(): string {
-    return this.config.getOrThrow('REDIS_HOST', 'localhost');
-  }
-
-  get redisPort(): number {
-    return this.config.getOrThrow('REDIS_PORT', 6379);
+  get redisUrl(): string {
+    return this.config.getOrThrow('REDIS_URL');
   }
 
   get swaggerUser(): string {
-    return this.config.getOrThrow('SWAGGER_USER');
+    return this.config.get('SWAGGER_USER') ?? 'admin';
   }
 
   get swaggerPassword(): string {
@@ -55,6 +51,6 @@ export class AppConfigService {
   }
 
   get mailFrom(): string {
-    return this.config.get('MAIL_FROM') || 'onboarding@resend.dev';
+    return this.config.get('MAIL_FROM') ?? 'onboarding@resend.dev';
   }
 }

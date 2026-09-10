@@ -9,10 +9,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly configService: AppConfigService) {}
 
   onModuleInit() {
-    this.client = new Redis({
-      host: this.configService.redisHost,
-      port: this.configService.redisPort,
-    });
+    this.client = new Redis(this.configService.redisUrl);
   }
 
   onModuleDestroy() {
@@ -23,12 +20,17 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return this.client.get(key);
   }
 
-  async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
+  async set(
+    key: string,
+    value: string,
+    ttlSeconds?: number,
+  ): Promise<void> {
     if (ttlSeconds) {
       await this.client.set(key, value, 'EX', ttlSeconds);
-    } else {
-      await this.client.set(key, value);
+      return;
     }
+
+    await this.client.set(key, value);
   }
 
   async incr(key: string): Promise<number> {
@@ -48,7 +50,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     let totalDeleted = 0;
 
     do {
-      const [nextCursor, keys] = await this.client.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      const [nextCursor, keys] = await this.client.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        100,
+      );
+
       cursor = nextCursor;
 
       if (keys.length > 0) {
@@ -75,23 +84,24 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       local clearBefore = now - window
 
       redis.call('ZREMRANGEBYSCORE', key, 0, clearBefore)
-      
 
       local amount = redis.call('ZCARD', key)
 
       if amount < limit then
-
-          redis.call('ZADD', key, now, now)
-          redis.call('PEXPIRE', key, window)
-          return {1, 0}
+        redis.call('ZADD', key, now, now)
+        redis.call('PEXPIRE', key, window)
+        return {1, 0}
       else
-        
-          local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
-          local retryAfter = 0
-          if #oldest > 0 then
-              retryAfter = math.ceil((tonumber(oldest[2]) + window - now) / 1000)
-          end
-          return {0, retryAfter}
+        local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+        local retryAfter = 0
+
+        if #oldest > 0 then
+          retryAfter = math.ceil(
+            (tonumber(oldest[2]) + window - now) / 1000
+          )
+        end
+
+        return {0, retryAfter}
       end
     `;
 
