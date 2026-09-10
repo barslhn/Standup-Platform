@@ -2,28 +2,30 @@ import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'node:path';
-import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+import expressBasicAuth from 'express-basic-auth';
 import { ZodValidationPipe } from 'nestjs-zod';
+import { AppModule } from './app.module';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { AppConfigService } from './common/config/app-config.service';
-import expressBasicAuth from 'express-basic-auth';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(AppConfigService);
 
-  app.useStaticAssets(join(__dirname, '..', 'public', 'ws-test.html'));
+  app.setGlobalPrefix('api');
+
+  app.useStaticAssets(join(__dirname, '..', 'public'));
 
   app.enableCors({
-    origin: ['http://localhost:3000'],
+    origin: configService.frontendUrl,
     credentials: true,
   });
 
   if (configService.nodeEnv === 'production') {
     app.use(
-      ['/api', '/api-json'],
+      ['/api/docs', '/api/docs-json'],
       expressBasicAuth({
         challenge: true,
         users: {
@@ -46,15 +48,17 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+
+  SwaggerModule.setup('api/docs', app, document);
+
   await app.listen(configService.port);
 }
 
 async function startApp() {
   try {
     await bootstrap();
-  } catch (err) {
-    console.error('Error during bootstrap', err);
+  } catch (error) {
+    console.error('Error during bootstrap', error);
     process.exit(1);
   }
 }
