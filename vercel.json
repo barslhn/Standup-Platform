@@ -1,5 +1,4 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
   "services": {
     "frontend": {
       "root": "frontend",
@@ -8,7 +7,8 @@
     "backend": {
       "root": "backend",
       "framework": "nestjs",
-      "installCommand": "pnpm install --frozen-lockfile --prod=false",
+      "entrypoint": "src/main.ts",
+      "installCommand": "pnpm config set node-linker hoisted && pnpm install --frozen-lockfile --prod=false",
       "functions": {
         "src/main.ts": {
           "includeFiles": "node_modules/**"
