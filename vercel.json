@@ -11,9 +11,7 @@
       "installCommand": "pnpm install --frozen-lockfile --prod=false",
       "functions": {
         "src/main.ts": {
-          "includeFiles": [
-            "node_modules/**"
-          ]
+          "includeFiles": "node_modules/**"
         }
       }
     }
